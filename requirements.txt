@@ -1,0 +1,4 @@
+requests 
+openai 
+langchain
+loguru

@@ -13,6 +13,9 @@ import openai
 from openai import OpenAI
 from langchain_core.utils.json import parse_json_markdown
 from loguru import logger
+import unidiff
+
+client = OpenAI()
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Extracts release notes and diff from GitHub and outputs a YAML file.")
@@ -86,15 +89,14 @@ def split_patch_files(files):
             patch.append(patch_content)
     return '\n'.join(patch), '\n'.join(test_patch)
 
-def extract_test_cases_with_llm(test_patch, model="gpt-4-1106-preview"):
+def extract_test_cases_with_llm(test_patch, model="deepseek-v3-0324"):
     if not test_patch.strip():
         logger.info("[LLM] No test patch provided for extraction.")
         return []
-    client = OpenAI()
     prompt = (
         "Given the following unified diff for test files, extract the names of all test cases (functions or methods) that were changed, added, or removed. "
         "Return a JSON array of test case names only.\n\n"
-        f"Diff:\n{test_patch}\n"
+        f"Diff:\n```\n{test_patch}\n```"
     )
     logger.info("[LLM] Calling OpenAI with prompt:\n{}", prompt)
     completion = client.chat.completions.create(
@@ -115,6 +117,45 @@ def extract_test_cases_with_llm(test_patch, model="gpt-4-1106-preview"):
     except Exception as e:
         logger.error(f"[LLM] Failed to parse LLM output: {e}")
         return []
+
+def get_diff(pr_url: str) -> str:
+    pr_number = pr_url.rstrip('/').split('/')[-1]
+    repo_path = '/'.join(pr_url.split('/')[-4:-2])
+    diff_url = f"https://github.com/{repo_path}/pull/{pr_number}.diff"
+    logger.info(f"[PR] Downloading diff from: {diff_url}")
+    response = requests.get(diff_url)
+    response.raise_for_status()
+    return response.text
+
+def extract_code_changes_from_diff(diff_content: str) -> str:
+    try:
+        patch_set = unidiff.PatchSet.from_string(diff_content)
+        code_changes = []
+        for patched_file in patch_set:
+            file_path = patched_file.path.lower()
+            if not any(pattern in file_path for pattern in ["test", "spec", "_test", ".test"]):
+                code_changes.append(str(patched_file))
+        if not code_changes:
+            return ""
+        return "\n".join(code_changes)
+    except Exception as e:
+        logger.error(f"Failed to parse code diff: {e}")
+        return ""
+
+def extract_test_changes_from_diff(diff_content: str) -> str:
+    try:
+        patch_set = unidiff.PatchSet.from_string(diff_content)
+        test_changes = []
+        for patched_file in patch_set:
+            file_path = patched_file.path.lower()
+            if any(pattern in file_path for pattern in ["test", "spec", "_test", ".test"]):
+                test_changes.append(str(patched_file))
+        if not test_changes:
+            return ""
+        return "\n".join(test_changes)
+    except Exception as e:
+        logger.error(f"Failed to parse diff: {e}")
+        return ""
 
 def main():
     args = parse_args()
@@ -140,51 +181,50 @@ def main():
 
     # Find PRs mentioned in release note but not in commit history
     mentioned_prs = set()
-    # Find all #1234, PR 1234, (1234), and PR links
+    # Find all #1234, PR 1234, (1234), and PR/issue links
     pr_number_patterns = re.findall(r"#(\d+)|PR[ ]?(\d+)|\((\d+)\)", release_note, re.IGNORECASE)
     for match in pr_number_patterns:
         for num in match:
             if num and num not in pr_numbers_in_history:
                 mentioned_prs.add(num)
-    pr_link_patterns = re.findall(r"https://github.com/[^/]+/[^/]+/pull/(\d+)", release_note)
+    pr_link_patterns = re.findall(r"https://github.com/[^/]+/[^/]+/(?:pull|issues)/(\d+)", release_note)
     for num in pr_link_patterns:
         if num and num not in pr_numbers_in_history:
             mentioned_prs.add(num)
     # Add these as minimal PRs
     for num in mentioned_prs:
         pr_url = f"https://github.com/{owner}/{repo}/pull/{num}"
-        prs.append({
+        pr_dict = {
             "pr_number": int(num),
             "pr_title": None,
             "pr_url": pr_url,
             "pr_link": pr_url,
             "is_mentioned_in_release_note": True
-        })
-    # For each PR, extract changed test cases from its test_patch using LLM
+        }
+        prs.append(pr_dict)
+    # For each PR, fetch diff from GitHub and extract test_patch and patch using API
     for pr in prs:
-        pr_number = pr['pr_number']
-        # Find test_patch for this PR (by commit)
-        pr_test_patch = ''
-        for commit in commits:
-            if 'commit' in commit and 'sha' in commit['commit']:
-                sha = commit['commit']['sha']
-            else:
-                sha = commit.get('sha')
-            if not sha:
-                continue
-            # If PR is from commit history, match commit to PR
-            if str(pr_number) in commit.get('commit', {}).get('message', '') or str(pr_number) in commit.get('commit', {}).get('url', ''):
-                # Find test patch for this commit
-                for f in files:
-                    if 'test' in f['filename'].lower() and f.get('sha') == sha:
-                        pr_test_patch += f.get('patch', '') + '\n'
-        # If not found, fallback: try to find any test patch mentioning PR number
-        if not pr_test_patch:
-            for f in files:
-                if 'test' in f['filename'].lower() and str(pr_number) in f.get('patch', ''):
-                    pr_test_patch += f.get('patch', '') + '\n'
-        logger.info(f"[PR {pr_number}] Extracting test cases from patch (length {len(pr_test_patch)}):\n{pr_test_patch[:500]}{'...' if len(pr_test_patch) > 500 else ''}")
-        pr['changed_test_cases'] = extract_test_cases_with_llm(pr_test_patch)
+        pr_url = pr['pr_url']
+        try:
+            diff_content = get_diff(pr_url)
+            pr['patch_without_test'] = extract_code_changes_from_diff(diff_content)
+            pr['test_patch'] = extract_test_changes_from_diff(diff_content)
+            logger.info(f"[PR {pr['pr_number']}] Downloaded diff length: {len(diff_content)}, test_patch length: {len(pr['test_patch'])}, patch_without_test length: {len(pr['patch_without_test'])}")
+        except Exception as e:
+            logger.error(f"[PR {pr['pr_number']}] Failed to fetch or parse diff: {e}")
+            pr['patch_without_test'] = ''
+            pr['test_patch'] = ''
+        # If both are empty, mark as issue and update URLs
+        if not pr['patch_without_test'] and not pr['test_patch']:
+            pr['is_issue'] = True
+            num = pr['pr_number']
+            issue_url = f"https://github.com/{owner}/{repo}/issues/{num}"
+            pr['pr_url'] = issue_url
+            pr['pr_link'] = issue_url
+        else:
+            pr['is_issue'] = False
+        pr['changed_test_cases'] = extract_test_cases_with_llm(pr['test_patch'])
+
     repo_full = f"{owner}/{repo}"
     instance_id = f"{owner}__{repo}_{base}_{end}"
     output = {

@@ -93,30 +93,45 @@ def extract_test_cases_with_llm(test_patch, model="deepseek-v3-0324"):
     if not test_patch.strip():
         logger.info("[LLM] No test patch provided for extraction.")
         return []
-    prompt = (
-        "Given the following unified diff for test files, extract the names of all test cases (functions or methods) that were changed, added, or removed. "
-        "Return a JSON array of test case names only.\n\n"
-        f"Diff:\n```\n{test_patch}\n```"
-    )
-    logger.info("[LLM] Calling OpenAI with prompt:\n{}", prompt)
-    completion = client.chat.completions.create(
-        model=model,
-        messages=[
-            {"role": "system", "content": "You are a helpful assistant."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0,
-        max_tokens=1024,
-    )
     try:
-        content = completion.choices[0].message.content
-        logger.info("[LLM] Raw LLM output:\n{}", content)
-        result = parse_json_markdown(content)
-        logger.info("[LLM] Parsed test case names: {}", result)
-        return result
+        patch_set = unidiff.PatchSet.from_string(test_patch)
     except Exception as e:
-        logger.error(f"[LLM] Failed to parse LLM output: {e}")
+        logger.error(f"[LLM] Failed to parse test_patch with unidiff: {e}")
         return []
+    all_nodeids = []
+    for patched_file in patch_set:
+        file_diff = str(patched_file)
+        prompt = f"""Given the following unified diff for a test file, extract the names of all test cases (functions or methods) that were changed, added, or removed.
+For each test, output the full nodeid (file path and test name, separated by '::'), as used by pytest and similar frameworks.
+Examples:
+- Standalone function: 'tests/test_foo.py::test_bar'
+- Inside a class: 'tests/test_foo.py::TestClass::test_bar'
+Return a JSON array of nodeids only.
+
+Diff:
+```
+{file_diff}
+```"""
+        logger.info("[LLM] Calling OpenAI with prompt for file {}:\n{}", patched_file.path, prompt)
+        completion = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0,
+            max_tokens=1024,
+        )
+        try:
+            content = completion.choices[0].message.content
+            logger.info("[LLM] Raw LLM output for file {}:\n{}", patched_file.path, content)
+            result = parse_json_markdown(content)
+            logger.info("[LLM] Parsed test case nodeids for file {}: {}", patched_file.path, result)
+            all_nodeids.extend(result)
+        except Exception as e:
+            logger.error(f"[LLM] Failed to parse LLM output for file {patched_file.path}: {e}")
+            continue
+    return all_nodeids
 
 def get_diff(pr_url: str) -> str:
     pr_number = pr_url.rstrip('/').split('/')[-1]
@@ -181,13 +196,14 @@ def main():
 
     # Find PRs mentioned in release note but not in commit history
     mentioned_prs = set()
-    # Find all #1234, PR 1234, (1234), and PR/issue links
+    # Find all #1234, PR 1234, (1234), and PR/issue links for this repo only
     pr_number_patterns = re.findall(r"#(\d+)|PR[ ]?(\d+)|\((\d+)\)", release_note, re.IGNORECASE)
     for match in pr_number_patterns:
         for num in match:
             if num and num not in pr_numbers_in_history:
                 mentioned_prs.add(num)
-    pr_link_patterns = re.findall(r"https://github.com/[^/]+/[^/]+/(?:pull|issues)/(\d+)", release_note)
+    repo_link_pattern = rf"https://github.com/{re.escape(owner)}/{re.escape(repo)}/(?:pull|issues)/(\d+)"
+    pr_link_patterns = re.findall(repo_link_pattern, release_note)
     for num in pr_link_patterns:
         if num and num not in pr_numbers_in_history:
             mentioned_prs.add(num)

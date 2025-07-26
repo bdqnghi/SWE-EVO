@@ -2,7 +2,7 @@ import os
 import glob
 import argparse
 import yaml
-from datasets import Dataset
+from datasets import Dataset, DatasetDict
 
 
 def load_yaml_files(input_dir):
@@ -29,6 +29,8 @@ def main():
 
     dataset = Dataset.from_list(data)
     print(f'Loaded {len(dataset)} records from {args.input_dir}')
+
+    dataset = DatasetDict({'test': dataset})
 
     os.makedirs(args.output_dir, exist_ok=True)
     dataset.save_to_disk(args.output_dir)

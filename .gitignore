@@ -65,3 +65,6 @@ output/
 
 # dotenv environment variables
 .env 
+/logs/
+/*_dataset/
+/notebooks/

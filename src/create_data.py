@@ -14,8 +14,14 @@ from openai import OpenAI
 from langchain_core.utils.json import parse_json_markdown
 from loguru import logger
 import unidiff
+import tempfile
+import subprocess
+import shutil
 
 client = OpenAI()
+
+# Global cache for cloned repositories
+_repo_cache = {}
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Extracts release notes and diff from GitHub and outputs a YAML file.")
@@ -142,20 +148,66 @@ def get_diff(pr_url: str) -> str:
     response.raise_for_status()
     return response.text
 
-def get_diff_between_releases(owner: str, repo: str, base: str, end: str) -> str:
-    """Get diff between two releases using GitHub API"""
-    url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{end}"
-    headers = {}
-    token = os.environ.get('GITHUB_TOKEN')
-    if token:
-        headers['Authorization'] = f'token {token}'
-    headers['Accept'] = 'application/vnd.github.v3.diff'
+def _get_or_clone_repo(owner: str, repo: str) -> str:
+    """Get cached repo path or clone the repository to a temporary directory."""
+    repo_key = f"{owner}/{repo}"
     
-    logger.info(f"[DIFF] Downloading diff from: {url}")
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    return response.text
+    if repo_key in _repo_cache:
+        logger.info(f"[CACHE] Using cached repository: {_repo_cache[repo_key]}")
+        return _repo_cache[repo_key]
+    
+    # Create temporary directory for the repository
+    temp_dir = tempfile.mkdtemp(prefix=f"repo_{owner}_{repo}_")
+    repo_url = f"https://github.com/{owner}/{repo}.git"
+    
+    logger.info(f"[CLONE] Cloning repository {repo_url} to {temp_dir}")
+    try:
+        subprocess.run(
+            ["git", "clone", repo_url, temp_dir],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        _repo_cache[repo_key] = temp_dir
+        logger.info(f"[CLONE] Successfully cloned repository to {temp_dir}")
+        return temp_dir
+    except subprocess.CalledProcessError as e:
+        logger.error(f"[CLONE] Failed to clone repository: {e}")
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+        raise RuntimeError(f"Failed to clone repository {repo_url}: {e}")
 
+def get_diff_between_releases(owner: str, repo: str, base: str, end: str) -> str:
+    """Get diff between two releases using git diff command line"""
+    repo_path = _get_or_clone_repo(owner, repo)
+    
+    logger.info(f"[DIFF] Getting diff between {base} and {end} using git diff")
+    try:
+        result = subprocess.run(
+            ["git", "diff", f"{base}..{end}"],
+            cwd=repo_path,
+            check=True,
+            capture_output=True,
+            text=True
+        )
+        diff_content = result.stdout
+        logger.info(f"[DIFF] Successfully generated diff with length: {len(diff_content)}")
+        return diff_content
+    except subprocess.CalledProcessError as e:
+        logger.error(f"[DIFF] Failed to get diff: {e}")
+        logger.error(f"[DIFF] Git stderr: {e.stderr}")
+        raise RuntimeError(f"Failed to get diff between {base} and {end}: {e}")
+
+def cleanup_repo_cache():
+    """Clean up all cached repositories."""
+    global _repo_cache
+    for repo_key, repo_path in _repo_cache.items():
+        logger.info(f"[CLEANUP] Removing cached repository: {repo_path}")
+        try:
+            shutil.rmtree(repo_path)
+        except Exception as e:
+            logger.error(f"[CLEANUP] Failed to remove {repo_path}: {e}")
+    _repo_cache.clear()
 
 
 def extract_code_changes_from_diff(diff_content: str) -> str:
@@ -290,6 +342,9 @@ def main():
         out = yaml.dump_nice_yaml(output)
         f.write(out)
     print(f"Output written to {output_path}")
+    
+    # Clean up cached repositories
+    cleanup_repo_cache()
 
 if __name__ == "__main__":
     main() 

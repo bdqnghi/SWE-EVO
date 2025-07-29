@@ -142,6 +142,22 @@ def get_diff(pr_url: str) -> str:
     response.raise_for_status()
     return response.text
 
+def get_diff_between_releases(owner: str, repo: str, base: str, end: str) -> str:
+    """Get diff between two releases using GitHub API"""
+    url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base}...{end}"
+    headers = {}
+    token = os.environ.get('GITHUB_TOKEN')
+    if token:
+        headers['Authorization'] = f'token {token}'
+    headers['Accept'] = 'application/vnd.github.v3.diff'
+    
+    logger.info(f"[DIFF] Downloading diff from: {url}")
+    response = requests.get(url, headers=headers)
+    response.raise_for_status()
+    return response.text
+
+
+
 def extract_code_changes_from_diff(diff_content: str) -> str:
     try:
         patch_set = unidiff.PatchSet.from_string(diff_content)
@@ -179,8 +195,6 @@ def main():
     base_commit = compare_data['base_commit']['sha']
     end_commit = compare_data['merge_base_commit']['sha'] if 'merge_base_commit' in compare_data else compare_data['commits'][-1]['sha'] if compare_data['commits'] else None
     environment_setup_commit = base_commit  # Placeholder, can be customized
-    files = compare_data.get('files', [])
-    patch, test_patch = split_patch_files(files)
     commits = compare_data.get('commits', [])
     release_note = fetch_release_note(owner, repo, end)
     prs = fetch_prs_from_commits(owner, repo, commits)
@@ -218,6 +232,17 @@ def main():
             "is_mentioned_in_release_note": True
         }
         prs.append(pr_dict)
+    
+    try:
+        overall_diff_content = get_diff_between_releases(owner, repo, base, end)
+        overall_patch_without_test = extract_code_changes_from_diff(overall_diff_content)
+        overall_test_patch = extract_test_changes_from_diff(overall_diff_content)
+        logger.info(f"[DIFF] Downloaded diff length: {len(overall_diff_content)}, test_patch length: {len(overall_test_patch)}, patch_without_test length: {len(overall_patch_without_test)}")
+    except Exception as e:
+        logger.error(f"[DIFF] Failed to fetch or parse diff: {e}")
+        overall_patch_without_test = ''
+        overall_test_patch = ''
+
     # For each PR, fetch diff from GitHub and extract test_patch and patch using API
     for pr in prs:
         pr_url = pr['pr_url']
@@ -247,8 +272,8 @@ def main():
         "repo": repo_full,
         "instance_id": instance_id,
         "base_commit": base_commit,
-        "patch": patch,
-        "test_patch": test_patch,
+        "patch": overall_patch_without_test,
+        "test_patch": overall_test_patch,
         "problem_statement": release_note,
         "FAIL_TO_PASS": "...",
         "PASS_TO_PASS": "...",

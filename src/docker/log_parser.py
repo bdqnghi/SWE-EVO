@@ -9,6 +9,7 @@ from swebench.harness.log_parsers import (
     parse_log_seaborn,
     parse_log_sympy,
 )
+from swesynth.mutation.validator.docker.test_log_parser import MAP_REPO_TO_PARSER
 
 __all__ = [
     "transform_django_test_directives",
@@ -133,7 +134,7 @@ parse_log_scikit = parse_log_pytest_v2
 parse_log_sphinx = parse_log_pytest_v2
 
 
-MAP_REPO_TO_PARSER = {
+MAP_REPO_TO_PARSER.update({
     # test set
     "astropy/astropy": parse_log_astropy,
     "django/django": parse_log_django,
@@ -154,7 +155,7 @@ MAP_REPO_TO_PARSER = {
     "pylint-dev/astroid": parse_log_astroid,
     "pyvista/pyvista": parse_log_pyvista,
     "marshmallow-code/marshmallow": parse_log_marshmallow,
-}
+})
 
 # SWE-Gym
 # From https://github.com/SWE-Gym/SWE-Bench-Fork/blob/242429c188fcfd06aad13fce9a54d450470bf0ac/swebench/harness/log_parsers.py

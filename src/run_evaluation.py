@@ -47,6 +47,7 @@ import yaml
 from src.docker.log_parser import MAP_REPO_TO_PARSER
 from src.docker.test_spec import make_env_script_list
 from swesynth.mutation.validator.docker.build import build_container
+from swesynth.mutation.validator.entities.status import TestStatus as SWESynthTestStatus
 
 _instance: ContextVar[SWEbenchInstance] = ContextVar("instance")
 
@@ -179,7 +180,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         # Attempt to apply patch to container
         val = container.exec_run(
             "git apply --allow-empty -v /tmp/patch.diff",
-            workdir="/testbed",
+            workdir="/workspace/graphene",
             user="root",
         )
         if val.exit_code != 0:
@@ -188,7 +189,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
             # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
             val = container.exec_run(
                 "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
-                workdir="/testbed",
+                workdir="/workspace/graphene",
                 user="root",
             )
             if val.exit_code != 0:
@@ -289,6 +290,13 @@ pytest -rA --continue-on-collection-errors
         # Write report to report.json
         with open(report_path, "w") as f:
             f.write(json.dumps(report, indent=4))
+        
+        # Convert TestStatus to SWESynthTestStatus
+        status: SWESynthTestStatus = SWESynthTestStatus.parse_test_output(test_output, repo=test_spec.repo)
+        logger.info(f"status: {status}")
+        status.to_json_file(log_dir / "status.json")
+
+        
         return instance_id, report
     except EvaluationError as e:
         error_msg = traceback.format_exc()
@@ -789,7 +797,7 @@ def main(
     predictions = {pred[KEY_INSTANCE_ID].lower(): pred for pred in predictions}
 
     # get dataset from predictions
-    dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predictions, run_id)
+    dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predictions, run_id, exclude_completed=False)
     # random.shuffle(dataset)
     full_dataset = load_swebench_dataset(dataset_name, split, instance_ids)
     if report_only:

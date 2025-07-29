@@ -282,6 +282,7 @@ def main():
         "start_version": base,
         "end_version": end,
         "end_version_commit": end_commit,
+        "image": f"sweworld/{instance_id}:latest"
     }
     output_filename = f"{owner}__{repo}_{base}_{end}.yaml"
     output_path = os.path.join(args.output_dir, output_filename)

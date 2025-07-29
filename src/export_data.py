@@ -12,6 +12,8 @@ def load_yaml_files(input_dir):
         with open(file_path, 'r', encoding='utf-8') as f:
             # Each file is a single document
             doc = yaml.safe_load(f)
+            doc['version'] = ''
+            doc['hints_text'] = ''
             data.append(doc)
     return data
 

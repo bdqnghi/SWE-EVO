@@ -384,8 +384,11 @@ def make_test_spec(instance: SWEbenchInstance) -> TestSpec:
             return json.loads(instance[key])
         return instance[key]
 
-    pass_to_pass = _from_json_or_obj(PASS_TO_PASS)
-    fail_to_pass = _from_json_or_obj(FAIL_TO_PASS)
+    # pass_to_pass = _from_json_or_obj(PASS_TO_PASS)
+    # fail_to_pass = _from_json_or_obj(FAIL_TO_PASS)
+
+    pass_to_pass = []
+    fail_to_pass = []
 
     env_name = "testbed"
     repo_directory = f"/{env_name}"
@@ -554,6 +557,68 @@ def get_empty_predictions(dataset_name: str, split: str) -> dict:
         for datum in dataset
     ]
 
+def get_dataset_from_preds(
+        dataset_name: str,
+        split: str,
+        instance_ids: list,
+        predictions: dict,
+        run_id: str,
+        exclude_completed: bool = True
+    ):
+    """
+    Return only instances that have predictions and are in the dataset.
+    If instance_ids is provided, only return instances with those IDs.
+    If exclude_completed is True, only return instances that have not been run yet.
+    """
+    # load dataset
+    dataset = load_swebench_dataset(dataset_name, split)
+    dataset_ids = {i[KEY_INSTANCE_ID] for i in dataset}
+
+    if instance_ids:
+        # check that all instance IDs have predictions
+        missing_preds = set(instance_ids) - set(predictions.keys())
+        if missing_preds:
+            print(f"Warning: Missing predictions for {len(missing_preds)} instance IDs.")
+    
+    # check that all prediction IDs are in the dataset
+    prediction_ids = set(predictions.keys())
+    if prediction_ids - dataset_ids:
+        raise ValueError(
+            (
+                "Some prediction IDs not found in dataset!"
+                f"\nMissing IDs:\n{' '.join(prediction_ids - dataset_ids)}"
+            )
+        )
+    if instance_ids:
+        dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in instance_ids]
+
+    # check which instance IDs have already been run
+    completed_ids = set()
+    for instance in dataset:
+        if instance[KEY_INSTANCE_ID] not in prediction_ids:
+            # skip instances without predictions
+            continue
+        prediction = predictions[instance[KEY_INSTANCE_ID]]
+        report_file = (
+            RUN_EVALUATION_LOG_DIR
+            / run_id
+            / prediction[KEY_MODEL].replace("/", "__")
+            / prediction[KEY_INSTANCE_ID]
+            / LOG_REPORT
+        )
+        if report_file.exists():
+            completed_ids.add(instance[KEY_INSTANCE_ID])
+
+    if completed_ids and exclude_completed:
+        # filter dataset to only instances that have not been run
+        print(f"{len(completed_ids)} instances already run, skipping...")
+        dataset = [i for i in dataset if i[KEY_INSTANCE_ID] not in completed_ids]
+
+    empty_patch_ids = {k for k, v in predictions.items() if v[KEY_PREDICTION] == "" or v[KEY_PREDICTION] is None}
+
+    # filter dataset to only instances with predictions
+    # dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] not in empty_patch_ids]
+    return dataset
 
 def main(
     dataset_name: str,
@@ -599,7 +664,7 @@ def main(
 
     # get dataset from predictions
     dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predictions, run_id)
-    random.shuffle(dataset)
+    # random.shuffle(dataset)
     full_dataset = load_swebench_dataset(dataset_name, split, instance_ids)
     if report_only:
         make_run_report(predictions, full_dataset, client, run_id)

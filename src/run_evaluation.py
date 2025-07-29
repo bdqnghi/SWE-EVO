@@ -128,7 +128,9 @@ def run_instance(
             @property
             def remote_instance_image_name(self):
                 commit = self._instance["base_commit"]
-                return self._instance['image']
+                # return self._instance['image']
+                # return f"sweworld/{self._instance['instance_id']}:latest"
+                return f"thaiminhpv/{self._instance['instance_id']}:latest"
 
                 """
 thaiminhpv/sweworld-pytest_8.3.5:latest
@@ -171,40 +173,79 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         logger.info(f"Intermediate patch for {instance_id} written to {patch_file}, now applying to container...")
         copy_to_container(container, patch_file, Path("/tmp/patch.diff"))
 
-        # Attempt to apply patch to container
-        # val = container.exec_run(
-        #     "git apply --allow-empty -v /tmp/patch.diff",
-        #     workdir="/testbed",
-        #     user="root",
-        # )
-        # if val.exit_code != 0:
-        #     logger.info(f"Failed to apply patch to container, trying again...")
+        # copy test patch to container
+        copy_to_container(container, log_dir / "test_patch.diff", Path("/tmp/test_patch.diff"))
 
-        #     # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
-        #     val = container.exec_run(
-        #         "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
-        #         workdir="/testbed",
-        #         user="root",
-        #     )
-        #     if val.exit_code != 0:
-        #         logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
-        #         raise EvaluationError(
-        #             instance_id,
-        #             f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
-        #             logger,
-        #         )
-        #     else:
-        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
-        # else:
-        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        # Attempt to apply patch to container
+        val = container.exec_run(
+            "git apply --allow-empty -v /tmp/patch.diff",
+            workdir="/testbed",
+            user="root",
+        )
+        if val.exit_code != 0:
+            logger.info(f"Failed to apply patch to container, trying again...")
+
+            # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
+            val = container.exec_run(
+                "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
+                workdir="/testbed",
+                user="root",
+            )
+            if val.exit_code != 0:
+                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+                raise EvaluationError(
+                    instance_id,
+                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+                    logger,
+                )
+            else:
+                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        else:
+            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+
+        # apply test_patch.diff to container
+        val = container.exec_run(
+            "git apply --allow-empty -v /tmp/test_patch.diff",
+            workdir="/workspace/graphene",
+            user="root",
+        )
+        if val.exit_code != 0:
+            logger.info(f"Failed to apply test patch to container, trying again...")
+
+            # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
+            val = container.exec_run(
+                "patch --batch --fuzz=5 -p1 -i /tmp/test_patch.diff",
+                workdir="/workspace/graphene",
+                user="root",
+            )
+            if val.exit_code != 0:
+                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+                raise EvaluationError(
+                    instance_id,
+                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+                    logger,
+                )
+            else:
+                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        else:
+            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
 
         # Get git diff before running eval script
-        git_diff_output_before = container.exec_run("git diff", workdir="/testbed").output.decode("utf-8").strip()
+        git_diff_output_before = container.exec_run("git diff", workdir="/workspace/graphene").output.decode("utf-8").strip()
         logger.info(f"Git diff before:\n{git_diff_output_before}")
 
         eval_file = Path(log_dir / "eval.sh")
-        eval_script = test_spec.eval_script
+        # eval_script = test_spec.eval_script
+        eval_script = """
+#!/bin/bash
+set -uxo pipefail
 
+source /opt/conda/etc/profile.d/conda.sh
+conda activate venv
+
+cd /workspace/graphene
+pytest -rA --continue-on-collection-errors
+"""
         # --- apply patch here
         _instance.set(test_spec._instance)
 
@@ -228,7 +269,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
                 )
 
         # Get git diff after running eval script
-        git_diff_output_after = container.exec_run("git diff", workdir="/testbed").output.decode("utf-8").strip()
+        git_diff_output_after = container.exec_run("git diff", workdir="/workspace/graphene").output.decode("utf-8").strip()
 
         # Check if git diff changed after running eval script
         logger.info(f"Git diff after:\n{git_diff_output_after}")
@@ -618,7 +659,84 @@ def get_dataset_from_preds(
 
     # filter dataset to only instances with predictions
     # dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] not in empty_patch_ids]
+    dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids]
     return dataset
+
+def run_instances(
+        predictions: dict,
+        instances: list,
+        cache_level: str,
+        clean: bool,
+        force_rebuild: bool,
+        max_workers: int,
+        run_id: str,
+        timeout: int,
+    ):
+    """
+    Run all instances for the given predictions in parallel.
+
+    Args:
+        predictions (dict): Predictions dict generated by the model
+        instances (list): List of instances
+        cache_level (str): Cache level
+        clean (bool): Clean images above cache level
+        force_rebuild (bool): Force rebuild images
+        max_workers (int): Maximum number of workers
+        run_id (str): Run ID
+        timeout (int): Timeout for running tests
+    """
+    client = docker.from_env()
+    test_specs = list(map(make_test_spec, instances))
+
+    # print number of existing instance images
+    instance_image_ids = {x.instance_image_key for x in test_specs}
+    existing_images = {
+        tag for i in client.images.list(all=True)
+        for tag in i.tags if tag in instance_image_ids
+    }
+    if not force_rebuild and len(existing_images):
+        print(f"Found {len(existing_images)} existing instance images. Will reuse them.")
+
+    # run instances in parallel
+    print(f"Running {len(instances)} instances...")
+    with tqdm(total=len(instances), smoothing=0) as pbar:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Create a future for running each instance
+            # import debugpy;
+            # try: 
+            #     debugpy.listen(5678);
+            #     debugpy.wait_for_client();
+            # except Exception as e:
+            #     pass
+            # debugpy.breakpoint();
+            futures = {
+                executor.submit(
+                    run_instance,
+                    test_spec,
+                    predictions[test_spec.instance_id],
+                    should_remove(
+                        test_spec.instance_image_key,
+                        cache_level,
+                        clean,
+                        existing_images,
+                    ),
+                    force_rebuild,
+                    client,
+                    run_id,
+                    timeout,
+                ): None
+                for test_spec in test_specs
+            }
+            # Wait for each future to complete
+            for future in as_completed(futures):
+                pbar.update(1)
+                try:
+                    # Update progress bar, check if instance ran successfully
+                    future.result()
+                except Exception as e:
+                    traceback.print_exc()
+                    continue
+    print("All instances run.")
 
 def main(
     dataset_name: str,
@@ -659,6 +777,14 @@ def main(
                 predictions = [json.loads(line) for line in f]
         else:
             raise ValueError('Predictions path must be "gold", .json, or .jsonl')
+
+    # import debugpy;
+    # try: 
+    #     debugpy.listen(5678);
+    #     debugpy.wait_for_client();
+    # except Exception as e:
+    #     pass
+    # debugpy.breakpoint();
     # predictions = {pred[KEY_INSTANCE_ID]: pred for pred in predictions}
     predictions = {pred[KEY_INSTANCE_ID].lower(): pred for pred in predictions}
 

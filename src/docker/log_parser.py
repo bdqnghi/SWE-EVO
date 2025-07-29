@@ -187,6 +187,7 @@ MAP_REPO_TO_PARSER.update(
         "pydantic/pydantic": parse_log_pydantic,
         "pandas-dev/pandas": parse_log_pandas,
         "facebookresearch/hydra": parse_log_hydra,
+        "graphql-python/graphene": parse_log_pytest_v2,
     }
 )
 

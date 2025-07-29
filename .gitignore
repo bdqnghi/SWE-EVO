@@ -68,3 +68,4 @@ output/
 /logs/
 /*_dataset/
 /notebooks/
+*.json

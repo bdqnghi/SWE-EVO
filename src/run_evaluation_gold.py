@@ -195,7 +195,9 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
 
         # Copy model prediction as patch file to container
         patch_file = Path(log_dir / "patch.diff")
-        patch_file.write_text(pred["model_patch"] or "")
+        # model_patch = pred["model_patch"] or ""
+        model_patch = test_spec._instance["patch"]
+        patch_file.write_text(model_patch or "")
         # ---
         test_patch = test_spec._test_patch
         (log_dir / "test_patch.diff").write_text(test_patch or "")  # for debugging only
@@ -210,33 +212,33 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
 
         repo_directory = get_repo_directory(container)
 
-        # logger.info(f"Applying patch to container...")
-        # # Attempt to apply patch to container
-        # val = container.exec_run(
-        #     "git apply --allow-empty -v /tmp/patch.diff",
-        #     workdir=repo_directory,
-        #     user="root",
-        # )
-        # if val.exit_code != 0:
-        #     logger.info(f"Failed to apply patch to container, trying again...")
+        logger.info(f"Applying patch to container...")
+        # Attempt to apply patch to container
+        val = container.exec_run(
+            "git apply --allow-empty -v /tmp/patch.diff",
+            workdir=repo_directory,
+            user="root",
+        )
+        if val.exit_code != 0:
+            logger.info(f"Failed to apply patch to container, trying again...")
 
-        #     # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
-        #     val = container.exec_run(
-        #         "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
-        #         workdir=repo_directory,
-        #         user="root",
-        #     )
-        #     if val.exit_code != 0:
-        #         logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
-        #         raise EvaluationError(
-        #             instance_id,
-        #             f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
-        #             logger,
-        #         )
-        #     else:
-        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
-        # else:
-        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+            # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
+            val = container.exec_run(
+                "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
+                workdir=repo_directory,
+                user="root",
+            )
+            if val.exit_code != 0:
+                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+                raise EvaluationError(
+                    instance_id,
+                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+                    logger,
+                )
+            else:
+                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        else:
+            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
 
         # logger.info(f"Applying test patch to container...")
         # # apply test_patch.diff to container
@@ -265,6 +267,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
         # else:
         #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+
         # Get git diff before running eval script
         git_diff_output_before = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
         logger.info(f"Git diff before:\n{git_diff_output_before}")

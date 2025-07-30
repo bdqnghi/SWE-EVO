@@ -210,61 +210,61 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
 
         repo_directory = get_repo_directory(container)
 
-        logger.info(f"Applying patch to container...")
-        # Attempt to apply patch to container
-        val = container.exec_run(
-            "git apply --allow-empty -v /tmp/patch.diff",
-            workdir=repo_directory,
-            user="root",
-        )
-        if val.exit_code != 0:
-            logger.info(f"Failed to apply patch to container, trying again...")
+        # logger.info(f"Applying patch to container...")
+        # # Attempt to apply patch to container
+        # val = container.exec_run(
+        #     "git apply --allow-empty -v /tmp/patch.diff",
+        #     workdir=repo_directory,
+        #     user="root",
+        # )
+        # if val.exit_code != 0:
+        #     logger.info(f"Failed to apply patch to container, trying again...")
 
-            # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
-            val = container.exec_run(
-                "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
-                workdir=repo_directory,
-                user="root",
-            )
-            if val.exit_code != 0:
-                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
-                raise EvaluationError(
-                    instance_id,
-                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
-                    logger,
-                )
-            else:
-                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
-        else:
-            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        #     # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
+        #     val = container.exec_run(
+        #         "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
+        #         workdir=repo_directory,
+        #         user="root",
+        #     )
+        #     if val.exit_code != 0:
+        #         logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+        #         raise EvaluationError(
+        #             instance_id,
+        #             f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+        #             logger,
+        #         )
+        #     else:
+        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        # else:
+        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
 
-        logger.info(f"Applying test patch to container...")
-        # apply test_patch.diff to container
-        val = container.exec_run(
-            "git apply --allow-empty -v /tmp/test_patch.diff",
-            workdir=repo_directory,
-            user="root",
-        )
-        if val.exit_code != 0:
-            logger.info(f"Failed to apply test patch to container, trying again...")
+        # logger.info(f"Applying test patch to container...")
+        # # apply test_patch.diff to container
+        # val = container.exec_run(
+        #     "git apply --allow-empty -v /tmp/test_patch.diff",
+        #     workdir=repo_directory,
+        #     user="root",
+        # )
+        # if val.exit_code != 0:
+        #     logger.info(f"Failed to apply test patch to container, trying again...")
 
-            # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
-            val = container.exec_run(
-                "patch --batch --fuzz=5 -p1 -i /tmp/test_patch.diff",
-                workdir=repo_directory,
-                user="root",
-            )
-            if val.exit_code != 0:
-                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
-                raise EvaluationError(
-                    instance_id,
-                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
-                    logger,
-                )
-            else:
-                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
-        else:
-            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        #     # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
+        #     val = container.exec_run(
+        #         "patch --batch --fuzz=5 -p1 -i /tmp/test_patch.diff",
+        #         workdir=repo_directory,
+        #         user="root",
+        #     )
+        #     if val.exit_code != 0:
+        #         logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+        #         raise EvaluationError(
+        #             instance_id,
+        #             f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+        #             logger,
+        #         )
+        #     else:
+        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        # else:
+        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
 
         # Get git diff before running eval script
         git_diff_output_before = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
@@ -280,7 +280,9 @@ source /opt/conda/etc/profile.d/conda.sh
 conda activate venv
 
 cd {repo_directory}
+echo "==== Test begin ===="
 pytest -rA --continue-on-collection-errors
+echo "==== Test end ===="
 """
         # --- apply patch here
         _instance.set(test_spec._instance)
@@ -348,7 +350,7 @@ pytest -rA --continue-on-collection-errors
         logger.error(error_msg)
     finally:
         # Remove instance container + image, close logger
-        cleanup_container(client, container, logger)
+        # cleanup_container(client, container, logger)
         if rm_image:
             remove_image(client, test_spec.instance_image_key, logger)
         close_logger(logger)

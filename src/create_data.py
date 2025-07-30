@@ -216,7 +216,7 @@ def extract_code_changes_from_diff(diff_content: str) -> str:
         code_changes = []
         for patched_file in patch_set:
             file_path = patched_file.path.lower()
-            if not any(pattern in file_path for pattern in ["test", "spec", "_test", ".test"]):
+            if not any(pattern in file_path for pattern in ["test"]):
                 code_changes.append(str(patched_file))
         if not code_changes:
             return ""
@@ -231,7 +231,7 @@ def extract_test_changes_from_diff(diff_content: str) -> str:
         test_changes = []
         for patched_file in patch_set:
             file_path = patched_file.path.lower()
-            if any(pattern in file_path for pattern in ["test", "spec", "_test", ".test"]):
+            if any(pattern in file_path for pattern in ["test"]):
                 test_changes.append(str(patched_file))
         if not test_changes:
             return ""

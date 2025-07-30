@@ -189,6 +189,8 @@ MAP_REPO_TO_PARSER.update(
         "pandas-dev/pandas": parse_log_pandas,
         "facebookresearch/hydra": parse_log_hydra,
         "graphql-python/graphene": parse_log_pytest_v2,
+        "arrow-py/arrow": parse_log_pytest_v2,
+        "numpy/numpy": parse_log_pytest_v2,
     }
 )
 

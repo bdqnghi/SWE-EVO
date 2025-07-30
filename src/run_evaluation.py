@@ -11,6 +11,37 @@ from pathlib import Path
 from typing import Any, cast
 import random
 
+
+def get_repo_directory(container):
+    """
+    Dynamically determine the repository directory from /workspace.
+    Returns the only non-hidden directory in /workspace.
+    """
+    # List all directories in /workspace
+    result = container.exec_run("ls -la /workspace")
+    if result.exit_code != 0:
+        raise Exception(f"Failed to list /workspace directory: {result.output.decode('utf-8')}")
+    
+    output = result.output.decode("utf-8")
+    lines = output.strip().split('\n')
+    
+    # Find non-hidden directories (skip . and ..)
+    repo_dirs = []
+    for line in lines:
+        if line.startswith('d') and not line.endswith('.') and not line.endswith('..'):
+            # Extract directory name from ls output
+            parts = line.split()
+            if len(parts) >= 9:  # ls -la format: permissions links owner group size date time name
+                dir_name = parts[-1]
+                if not dir_name.startswith('.'):
+                    repo_dirs.append(dir_name)
+    
+    if len(repo_dirs) != 1:
+        raise Exception(f"Expected exactly one non-hidden directory in /workspace, found: {repo_dirs}")
+    
+    repo_dir = repo_dirs[0]
+    return f"/workspace/{repo_dir}"
+
 import docker
 from datasets import Dataset, load_dataset, load_from_disk
 from swebench.harness import run_evaluation
@@ -177,10 +208,13 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         # copy test patch to container
         copy_to_container(container, log_dir / "test_patch.diff", Path("/tmp/test_patch.diff"))
 
+        repo_directory = get_repo_directory(container)
+
+        logger.info(f"Applying patch to container...")
         # Attempt to apply patch to container
         val = container.exec_run(
             "git apply --allow-empty -v /tmp/patch.diff",
-            workdir="/workspace/graphene",
+            workdir=repo_directory,
             user="root",
         )
         if val.exit_code != 0:
@@ -189,7 +223,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
             # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
             val = container.exec_run(
                 "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
-                workdir="/workspace/graphene",
+                workdir=repo_directory,
                 user="root",
             )
             if val.exit_code != 0:
@@ -204,10 +238,11 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         else:
             logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
 
+        logger.info(f"Applying test patch to container...")
         # apply test_patch.diff to container
         val = container.exec_run(
             "git apply --allow-empty -v /tmp/test_patch.diff",
-            workdir="/workspace/graphene",
+            workdir=repo_directory,
             user="root",
         )
         if val.exit_code != 0:
@@ -216,7 +251,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
             # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
             val = container.exec_run(
                 "patch --batch --fuzz=5 -p1 -i /tmp/test_patch.diff",
-                workdir="/workspace/graphene",
+                workdir=repo_directory,
                 user="root",
             )
             if val.exit_code != 0:
@@ -232,19 +267,19 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
             logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
 
         # Get git diff before running eval script
-        git_diff_output_before = container.exec_run("git diff", workdir="/workspace/graphene").output.decode("utf-8").strip()
+        git_diff_output_before = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
         logger.info(f"Git diff before:\n{git_diff_output_before}")
 
         eval_file = Path(log_dir / "eval.sh")
         # eval_script = test_spec.eval_script
-        eval_script = """
+        eval_script = f"""
 #!/bin/bash
 set -uxo pipefail
 
 source /opt/conda/etc/profile.d/conda.sh
 conda activate venv
 
-cd /workspace/graphene
+cd {repo_directory}
 pytest -rA --continue-on-collection-errors
 """
         # --- apply patch here
@@ -270,7 +305,7 @@ pytest -rA --continue-on-collection-errors
                 )
 
         # Get git diff after running eval script
-        git_diff_output_after = container.exec_run("git diff", workdir="/workspace/graphene").output.decode("utf-8").strip()
+        git_diff_output_after = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
 
         # Check if git diff changed after running eval script
         logger.info(f"Git diff after:\n{git_diff_output_after}")

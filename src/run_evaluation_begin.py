@@ -278,6 +278,12 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         git_diff_output_before = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
         logger.info(f"Git diff before:\n{git_diff_output_before}")
 
+        test_command = {
+            "graphql-python/graphene": "pytest -rA --continue-on-collection-errors",
+            "arrow-py/arrow": "make test",
+            "numpy/numpy": "spin test -v",
+            "pytest-dev/pytest": "pytest -rA --continue-on-collection-errors",
+        }
 
         eval_file = Path(log_dir / "eval.sh")
         # eval_script = test_spec.eval_script
@@ -285,12 +291,11 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
 #!/bin/bash
 set -uxo pipefail
 
-source /opt/conda/etc/profile.d/conda.sh
-conda activate venv
+source /opt/conda/bin/activate venv
 
 cd {repo_directory}
 echo "==== Test begin ===="
-pytest -rA --continue-on-collection-errors
+{test_command[test_spec.repo]}
 echo "==== Test end ===="
 """
         # --- apply patch here

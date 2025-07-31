@@ -84,10 +84,9 @@ class TestStatusPR:
         print("PR_to_pass_percentage:")
         pprint(PR_to_pass_percentage)
 
-        print("pass_PRs:")
-        pprint(pass_PRs)
-        print("fail_PRs:")
-        pprint(fail_PRs)
+        total_count = len(pass_PRs) + len(fail_PRs)
+        print(f"pass_PRs: {len(pass_PRs)}/{total_count}")
+        print(f"fail_PRs: {len(fail_PRs)}/{total_count}")
 
         return cls(pass_PRs, fail_PRs, test_case_prefix_to_PRs_mapping, cared_tests)
 
@@ -134,15 +133,15 @@ def parse_scores(
             # print(f"Error parsing {line}: {e}")
             print(f"Error parsing {pred_name}: {e}")
             continue
-
+ 
     # Load dataset and create test case to PRs mapping
     test_case_to_PRs_mapping: dict[str, set[str]] = defaultdict(set)
     dataset = load_from_disk(dataset_path)["test"].to_pandas()
     data = dataset.query(f"instance_id == '{instance_id}'")["PRs"].iloc[0]
 
     for item in data:
-        if "changed_test_cases" in item:
-            for test_case in item["changed_test_cases"]:
+        if "changed_test_files" in item:
+            for test_case in item["changed_test_files"]:
                 test_case = test_case.split("::")[0]
                 test_case_to_PRs_mapping[test_case].add(item["pr_number"])
 

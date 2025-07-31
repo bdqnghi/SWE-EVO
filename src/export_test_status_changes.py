@@ -49,8 +49,21 @@ def main():
     
     try:
         # Load status files
-        empty_pred_status = TestStatus.from_json_file(Path(args.empty_status_path))
-        gold_pred_status = TestStatus.from_json_file(Path(args.gold_status_path))
+        try:
+            empty_pred_status = TestStatus.from_json_file(Path(args.empty_status_path))
+        except Exception as e:
+            print(f"Error: {e}")
+            print(f"Empty status file not found: {args.empty_status_path}")
+            print(f"Using empty status")
+            empty_pred_status = TestStatus(set(), set())
+
+        try:
+            gold_pred_status = TestStatus.from_json_file(Path(args.gold_status_path))
+        except Exception as e:
+            print(f"Error: {e}")
+            print(f"Gold status file not found: {args.gold_status_path}")
+            print(f"Using empty status")
+            gold_pred_status = TestStatus(set(), set())
         
         # Calculate status changes
         test_status_changes: TestStatusDiff = empty_pred_status >> gold_pred_status

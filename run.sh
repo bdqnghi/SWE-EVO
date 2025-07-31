@@ -59,20 +59,40 @@ python -m src.run_evaluation_begin \
     --cache_level instance \
     --dataset_name ./output/exported_dataset \
     --predictions_path ./output/preds/empty.jsonl \
-    --max_workers 4 \
+    --max_workers 6 \
     --split test \
-    --run_id begin_version
+    --run_id empty
 
 python -m src.run_evaluation_gold \
     --cache_level instance \
     --dataset_name ./output/exported_dataset \
     --predictions_path ./output/preds/empty.jsonl \
-    --max_workers 4 \
+    --max_workers 6 \
     --split test \
     --run_id gold
 
+# python -m src.export_test_status_changes \
+#     --empty-status-path logs/run_evaluation/empty/empty/arrow-py__arrow_1.2.0_1.2.1/status.json \
+#     --gold-status-path logs/run_evaluation/gold/empty/arrow-py__arrow_1.2.0_1.2.1/status.json \
+#         --instance-id arrow-py__arrow_1.2.0_1.2.1 \
+#         --output-file output/test_status_changes.jsonl
+# done
+
+instance_ids=(
+    "arrow-py__arrow_1.2.0_1.2.1"
+    "graphql-python__graphene_v3.2.2_v3.3.0"
+    "numpy__numpy_v2.1.3_v2.2.0"
+    "numpy__numpy_v2.2.6_v2.3.0"
+    "qutip__qutip_v5.0.4_v5.1.0"
+    "scipy__scipy_v1.15.3_v1.16.0"
+)
+
+for instance_id in "${instance_ids[@]}"; do
+
 python -m src.export_test_status_changes \
-    --empty-status-path logs/run_evaluation/begin_version/empty/arrow-py__arrow_1.2.0_1.2.1/status.json \
-    --gold-status-path logs/run_evaluation/gold/empty/arrow-py__arrow_1.2.0_1.2.1/status.json \
-    --instance-id arrow-py__arrow_1.2.0_1.2.1 \
-    --output-file output/test_status_changes.jsonl
+    --empty-status-path logs/run_evaluation/empty/empty/${instance_id}/status.json \
+    --gold-status-path logs/run_evaluation/gold/gold/${instance_id}/status.json \
+        --instance-id ${instance_id} \
+        --output-file output/test_status_changes.jsonl
+
+done

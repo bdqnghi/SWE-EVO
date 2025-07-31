@@ -10,6 +10,38 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any, cast
 import random
+
+
+def get_repo_directory(container):
+    """
+    Dynamically determine the repository directory from /workspace.
+    Returns the only non-hidden directory in /workspace.
+    """
+    # List all directories in /workspace
+    result = container.exec_run("ls -la /workspace")
+    if result.exit_code != 0:
+        raise Exception(f"Failed to list /workspace directory: {result.output.decode('utf-8')}")
+    
+    output = result.output.decode("utf-8")
+    lines = output.strip().split('\n')
+    
+    # Find non-hidden directories (skip . and ..)
+    repo_dirs = []
+    for line in lines:
+        if line.startswith('d') and not line.endswith('.') and not line.endswith('..'):
+            # Extract directory name from ls output
+            parts = line.split()
+            if len(parts) >= 9:  # ls -la format: permissions links owner group size date time name
+                dir_name = parts[-1]
+                if not dir_name.startswith('.'):
+                    repo_dirs.append(dir_name)
+    
+    if len(repo_dirs) != 1:
+        raise Exception(f"Expected exactly one non-hidden directory in /workspace, found: {repo_dirs}")
+    
+    repo_dir = repo_dirs[0]
+    return f"/workspace/{repo_dir}"
+
 import docker
 from datasets import Dataset, load_dataset, load_from_disk
 from swebench.harness import run_evaluation
@@ -47,8 +79,9 @@ from src.docker.log_parser import MAP_REPO_TO_PARSER
 from src.docker.test_spec import make_env_script_list
 from swesynth.mutation.validator.docker.build import build_container
 from swesynth.mutation.validator.entities.status import TestStatus as SWESynthTestStatus
-from src.run_evaluation import *
-from src.run_evaluation import _instance
+
+_instance: ContextVar[SWEbenchInstance] = ContextVar("instance")
+
 
 def run_instance(
     test_spec: TestSpec,
@@ -330,6 +363,293 @@ echo "==== Test end ===="
         close_logger(logger)
     return
 
+
+def make_eval_script_list(instance, specs, env_name, repo_directory, base_commit, test_patch):
+    """
+    Applies the test patch and runs the tests.
+    """
+    HEREDOC_DELIMITER = "EOF_114329324912"
+    # test_files = re.findall(DIFF_MODIFIED_FILE_REGEX, test_patch)
+    # Reset test files to the state they should be in before the patch.
+    # reset_tests_command = f"git checkout {base_commit} {' '.join(test_files)}"
+    apply_test_patch_command = f"git apply -v - <<'{HEREDOC_DELIMITER}'\n{test_patch}\n{HEREDOC_DELIMITER}"
+    test_command = " ".join(
+        [
+            MAP_REPO_VERSION_TO_SPECS[instance["repo"]][instance["version"]]["test_cmd"],
+            *get_test_directives(instance),
+        ]
+    )
+    apply_patch_command = """
+{
+    git apply --allow-empty -v /tmp/patch.diff
+} || {
+    patch --batch --fuzz=5 -p1 -i /tmp/patch.diff
+}
+"""
+
+    eval_commands = [
+        apply_test_patch_command,
+        "source /opt/miniconda3/bin/activate",
+        f"conda activate {env_name}",
+        f"cd {repo_directory}",
+    ]
+    if "eval_commands" in specs:
+        eval_commands += specs["eval_commands"]
+    eval_commands += [
+        f"git config --global --add safe.directory {repo_directory}",  # for nonroot user
+        f"cd {repo_directory}",
+        # This is just informational, so we have a record
+        "git status",
+        "git show",
+        f"git diff {base_commit}",
+        "source /opt/miniconda3/bin/activate",
+        f"conda activate {env_name}",
+    ]
+    if "install" in specs:
+        eval_commands.append(specs["install"])
+    eval_commands += [
+        # reset_tests_command,
+        # apply_test_patch_command,
+        apply_patch_command,
+        test_command,
+        # reset_tests_command,  # Revert tests after done, leave the repo in the same state as before
+    ]
+    return eval_commands
+
+
+def load_swebench_dataset(name="princeton-nlp/SWE-bench", split="test", instance_ids=None) -> list[SWEbenchInstance]:
+    """
+    Load SWE-bench dataset from Hugging Face Datasets or local .json/.jsonl file
+    """
+    # check that all instance IDs are in the dataset
+    if instance_ids:
+        instance_ids = set(instance_ids)
+    # Load from local .json/.jsonl file
+    if name == "SWE-Gym/SWE-Gym":
+        dataset: Dataset = load_dataset("SWE-Gym/SWE-Gym", split=split)
+        dataset_ids = {instance[KEY_INSTANCE_ID] for instance in dataset}
+    elif name.endswith(".json") or name.endswith(".jsonl"):
+        dataset = json.loads(Path(name).read_text())
+        dataset_ids = {instance[KEY_INSTANCE_ID] for instance in dataset}
+    elif name.endswith(".parquet"):
+        dataset: Dataset = load_dataset("parquet", data_files={"dev": name})["dev"]
+        dataset_ids = {instance[KEY_INSTANCE_ID] for instance in dataset}
+    elif "/" in name and "princeton-nlp/SWE-bench" not in name:
+        dataset = cast(Dataset, load_from_disk(name)[split])
+        dataset_ids = {instance[KEY_INSTANCE_ID] for instance in dataset}
+    else:
+        # Load from Hugging Face Datasets
+        if name.lower() in {"swe-bench", "swebench", "swe_bench"}:
+            name = "princeton-nlp/SWE-bench"
+        elif name.lower() in {"swe-bench-lite", "swebench-lite", "swe_bench_lite", "swe-bench_lite", "lite"}:
+            name = "princeton-nlp/SWE-bench_Lite"
+        dataset = cast(Dataset, load_dataset(name, split=split))
+        dataset_ids = {instance[KEY_INSTANCE_ID] for instance in dataset}
+
+    if instance_ids:
+        if instance_ids - dataset_ids:
+            raise ValueError(("Some instance IDs not found in dataset!" f"\nMissing IDs:\n{' '.join(instance_ids - dataset_ids)}"))
+        dataset = [instance for instance in dataset if instance[KEY_INSTANCE_ID] in instance_ids]
+
+    _dataset = []
+    for instance in dataset:
+        instance[KEY_INSTANCE_ID] = instance[KEY_INSTANCE_ID].lower()
+        _dataset.append(instance)
+    dataset = _dataset
+
+    return [cast(SWEbenchInstance, instance) for instance in dataset]
+
+
+def make_test_spec(instance: SWEbenchInstance) -> TestSpec:
+    if isinstance(instance, TestSpec):
+        return instance
+    instance_id = instance[KEY_INSTANCE_ID].lower()
+    repo = instance["repo"].lower()
+    # version = instance["version"]
+    base_commit = instance["base_commit"]
+    problem_statement = instance["problem_statement"]
+    # hints_text = instance["hints_text"]  # Unused
+    test_patch = instance["test_patch"]
+
+    def _from_json_or_obj(key: str) -> Any:
+        """If key points to string, load with json"""
+        if isinstance(instance[key], str):
+            return json.loads(instance[key])
+        return instance[key]
+
+    # pass_to_pass = _from_json_or_obj(PASS_TO_PASS)
+    # fail_to_pass = _from_json_or_obj(FAIL_TO_PASS)
+
+    pass_to_pass = []
+    fail_to_pass = []
+
+    env_name = "testbed"
+    repo_directory = f"/{env_name}"
+    # specs = MAP_REPO_VERSION_TO_SPECS[repo][version]
+
+    # repo_script_list = make_repo_script_list(specs, repo, repo_directory, base_commit, env_name)
+    # env_script_list = make_env_script_list(instance, specs, env_name)
+    # eval_script_list = make_eval_script_list(instance, specs, env_name, repo_directory, base_commit, test_patch)
+    repo_script_list = ""
+    env_script_list = ""
+    eval_script_list = ""
+    version = ""
+    if platform.machine() in {"aarch64", "arm64"}:
+        # use arm64 unless explicitly specified
+        arch = "arm64" if instance_id not in USE_X86 else "x86_64"
+    else:
+        arch = "x86_64"
+
+    obj = TestSpec(
+        instance_id=instance_id,
+        repo=repo,
+        env_script_list=env_script_list,
+        repo_script_list=repo_script_list,
+        eval_script_list=eval_script_list,
+        version=version,
+        arch=arch,
+        FAIL_TO_PASS=fail_to_pass,
+        PASS_TO_PASS=pass_to_pass,
+    )
+
+    # ---
+    obj._test_patch = test_patch
+    obj._instance = instance
+    # ---
+
+    return obj
+
+
+def get_logs_eval(log_fp: str) -> tuple[dict[str, str], bool]:
+    """
+    Retrieve evaluation results for a task instance from its corresponding log file
+
+    Args:
+        log_fp (str): path to log file
+    Returns:
+        bool: whether the patch applied successfully
+        dict: status map
+    """
+    # Convert e.g. "logs/scikit-learn__scikit-learn-12421/test_output.txt" to "scikit-learn/scikit-learn"
+    sample_id = str(Path(log_fp).parent.stem)  # e.g. scikit-learn__scikit-learn-12421
+    # repo = "-".join(sample_id.replace("__", "/").split("-")[:-1])  # e.g. scikit-learn/scikit-learn
+    repo = _instance.get()["repo"]
+    log_parser = MAP_REPO_TO_PARSER[repo]
+
+    with open(log_fp) as f:
+        content = f.read()
+        if (
+            any(
+                [
+                    x in content
+                    for x in [
+                        APPLY_PATCH_FAIL,
+                        RESET_FAILED,
+                        TESTS_ERROR,
+                        TESTS_TIMEOUT,
+                        "Failed to reset task environment",
+                    ]
+                ]
+            )
+            or "applied patch" not in content.lower()
+        ):
+            # Eval patch was not applied successfully
+            return {}, False
+
+        # Get status map of evaluation results
+        content = content.split(f"{APPLY_PATCH_PASS} (pred)")[-1]
+        return log_parser(content), True
+
+
+def get_test_directives(instance: SWEbenchInstance) -> list:
+    """
+    Get test directives from the test_patch of a task instance
+
+    Args:
+        instance (dict): task instance
+    Returns:
+        directives (list): List of test directives
+    """
+    # For seq2seq code repos, testing command is fixed
+    if instance["repo"] == "swe-bench/humaneval":
+        return ["test.py"]
+
+    if instance["repo"] == "django/django":
+        # Get test directives from test patch and remove non-test files
+        diff_pat = r"diff --git a/.* b/(.*)"
+        test_patch = instance["test_patch"]
+        directives = re.findall(diff_pat, test_patch)
+        directives = [d for d in directives if not any(d.endswith(ext) for ext in NON_TEST_EXTS)]
+
+        directives_transformed = []
+        for d in directives:
+            d = d[: -len(".py")] if d.endswith(".py") else d
+            d = d[len("tests/") :] if d.startswith("tests/") else d
+            d = d.replace("/", ".")
+            directives_transformed.append(d)
+        directives = directives_transformed
+        return directives
+
+    if instance["repo"] == "sympy/sympy":
+        # Get test directives from test patch and remove non-test files
+        diff_pat = r"diff --git a/.* b/(.*)"
+        test_patch = instance["test_patch"]
+        directives = re.findall(diff_pat, test_patch)
+        directives = [d for d in directives if not any(d.endswith(ext) for ext in NON_TEST_EXTS)]
+        return directives
+
+    pass_to_pass = instance["PASS_TO_PASS"]
+    fail_to_pass = instance["FAIL_TO_PASS"]
+
+    if isinstance(pass_to_pass, str):
+        pass_to_pass = json.loads(pass_to_pass)
+    if isinstance(fail_to_pass, str):
+        fail_to_pass = json.loads(fail_to_pass)
+
+    fail_to_pass = set(fail_to_pass)
+    pass_to_pass = set(pass_to_pass)
+
+    if instance["repo"] not in {"django/django", "sympy/sympy"}:
+        # this assumes that non-pytest project do not have "::" in their test names
+        fail_to_pass = {test_file.split("::")[0] for test_file in fail_to_pass if "::" in test_file}
+        pass_to_pass = {test_file.split("::")[0] for test_file in pass_to_pass if "::" in test_file}
+
+    return list(fail_to_pass | pass_to_pass)
+
+    # Get test directives from test patch and remove non-test files
+    diff_pat = r"diff --git a/.* b/(.*)"
+    test_patch = instance["test_patch"]
+    directives = re.findall(diff_pat, test_patch)
+    directives = [d for d in directives if not any(d.endswith(ext) for ext in NON_TEST_EXTS)]
+
+    # For Django tests, remove extension + "tests/" prefix and convert slashes to dots (module referencing)
+    if instance["repo"] == "django/django":
+        raise NotImplementedError
+        directives_transformed = []
+        for d in directives:
+            d = d[: -len(".py")] if d.endswith(".py") else d
+            d = d[len("tests/") :] if d.startswith("tests/") else d
+            d = d.replace("/", ".")
+            directives_transformed.append(d)
+        directives = directives_transformed
+
+    return directives
+
+
+def get_empty_predictions(dataset_name: str, split: str) -> dict:
+    """
+    Create empty predictions for a given dataset.
+    """
+    dataset = load_swebench_dataset(dataset_name, split)
+    return [
+        {
+            KEY_INSTANCE_ID: datum[KEY_INSTANCE_ID],
+            KEY_PREDICTION: "",
+            KEY_MODEL: "empty",
+        }
+        for datum in dataset
+    ]
+
 def get_dataset_from_preds(
         dataset_name: str,
         split: str,
@@ -397,6 +717,139 @@ def get_dataset_from_preds(
     dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids]
     return dataset
 
+def run_instances(
+        predictions: dict,
+        instances: list,
+        cache_level: str,
+        clean: bool,
+        force_rebuild: bool,
+        max_workers: int,
+        run_id: str,
+        timeout: int,
+    ):
+    """
+    Run all instances for the given predictions in parallel.
+
+    Args:
+        predictions (dict): Predictions dict generated by the model
+        instances (list): List of instances
+        cache_level (str): Cache level
+        clean (bool): Clean images above cache level
+        force_rebuild (bool): Force rebuild images
+        max_workers (int): Maximum number of workers
+        run_id (str): Run ID
+        timeout (int): Timeout for running tests
+    """
+    client = docker.from_env()
+    test_specs = list(map(make_test_spec, instances))
+
+    # print number of existing instance images
+    instance_image_ids = {x.instance_image_key for x in test_specs}
+    existing_images = {
+        tag for i in client.images.list(all=True)
+        for tag in i.tags if tag in instance_image_ids
+    }
+    if not force_rebuild and len(existing_images):
+        print(f"Found {len(existing_images)} existing instance images. Will reuse them.")
+
+    # run instances in parallel
+    print(f"Running {len(instances)} instances...")
+    with tqdm(total=len(instances), smoothing=0) as pbar:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Create a future for running each instance
+            futures = {
+                executor.submit(
+                    run_instance,
+                    test_spec,
+                    predictions[test_spec.instance_id],
+                    should_remove(
+                        test_spec.instance_image_key,
+                        cache_level,
+                        clean,
+                        existing_images,
+                    ),
+                    force_rebuild,
+                    client,
+                    run_id,
+                    timeout,
+                ): None
+                for test_spec in test_specs
+            }
+            # Wait for each future to complete
+            for future in as_completed(futures):
+                pbar.update(1)
+                try:
+                    # Update progress bar, check if instance ran successfully
+                    future.result()
+                except Exception as e:
+                    traceback.print_exc()
+                    continue
+    print("All instances run.")
+
+def main(
+    dataset_name: str,
+    split: str,
+    instance_ids: list,
+    predictions_path: str,
+    max_workers: int,
+    force_rebuild: bool,
+    cache_level: str,
+    clean: bool,
+    open_file_limit: int,
+    run_id: str,
+    timeout: int,
+    report_only: bool = False,
+):
+    """
+    Run evaluation harness for the given dataset and predictions.
+    """
+    # set open file limit
+    assert len(run_id) > 0, "Run ID must be provided"
+    if platform.system() == "Linux":
+        resource.setrlimit(resource.RLIMIT_NOFILE, (open_file_limit, open_file_limit))
+    client = docker.from_env()
+
+    # load predictions as map of instance_id to prediction
+    if predictions_path == "gold":
+        print("Using gold predictions - ignoring predictions_path")
+        predictions = get_gold_predictions(dataset_name, split)
+    elif predictions_path == "empty":
+        print("Using empty predictions - ignoring predictions_path")
+        predictions = get_empty_predictions(dataset_name, split)
+    else:
+        if predictions_path.endswith(".json"):
+            with open(predictions_path, "r") as f:
+                predictions = json.load(f)
+        elif predictions_path.endswith(".jsonl"):
+            with open(predictions_path, "r") as f:
+                predictions = [json.loads(line) for line in f]
+        else:
+            raise ValueError('Predictions path must be "gold", .json, or .jsonl')
+
+    # predictions = {pred[KEY_INSTANCE_ID]: pred for pred in predictions}
+    predictions = {pred[KEY_INSTANCE_ID].lower(): pred for pred in predictions}
+
+    # get dataset from predictions
+    dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predictions, run_id, exclude_completed=False)
+    # random.shuffle(dataset)
+    full_dataset = load_swebench_dataset(dataset_name, split, instance_ids)
+    if report_only:
+        make_run_report(predictions, full_dataset, client, run_id)
+        return
+    existing_images = list_images(client)
+    print(f"Running {len(dataset)} unevaluated instances...")
+    if not dataset:
+        print("No instances to run.")
+    else:
+        # build environment images + run instances
+        # build_env_images(client, dataset, force_rebuild, max_workers)
+        run_instances(predictions, dataset, cache_level, clean, force_rebuild, max_workers, run_id, timeout)
+
+    # clean images + make final report
+    clean_images(client, existing_images, cache_level, clean)
+    make_run_report(predictions, full_dataset, client, run_id)
+
+
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--dataset_name", default="princeton-nlp/SWE-bench_Lite", type=str, help="Name of dataset or path to JSON file.")
@@ -438,3 +891,4 @@ if __name__ == "__main__":
         "swebench.harness.test_spec.make_env_script_list", make_env_script_list
     ):
         main(**vars(args))
+

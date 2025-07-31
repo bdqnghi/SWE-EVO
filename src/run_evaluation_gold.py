@@ -668,6 +668,9 @@ def get_dataset_from_preds(
     dataset = load_swebench_dataset(dataset_name, split)
     dataset_ids = {i[KEY_INSTANCE_ID] for i in dataset}
 
+    gold_predictions = get_gold_predictions(dataset_name, split)
+    predictions.update({pred[KEY_INSTANCE_ID]: pred for pred in gold_predictions})
+
     if instance_ids:
         # check that all instance IDs have predictions
         missing_preds = set(instance_ids) - set(predictions.keys())

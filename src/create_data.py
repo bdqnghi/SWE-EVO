@@ -95,7 +95,7 @@ def split_patch_files(files):
             patch.append(patch_content)
     return '\n'.join(patch), '\n'.join(test_patch)
 
-def extract_test_cases_with_llm(test_patch, model="deepseek-v3-0324"):
+def extract_changed_test_files(test_patch):
     if not test_patch.strip():
         logger.info("[LLM] No test patch provided for extraction.")
         return []
@@ -104,40 +104,10 @@ def extract_test_cases_with_llm(test_patch, model="deepseek-v3-0324"):
     except Exception as e:
         logger.error(f"[LLM] Failed to parse test_patch with unidiff: {e}")
         return []
-    all_nodeids = []
+    changed_test_files = []
     for patched_file in patch_set:
-        file_diff = str(patched_file)
-        prompt = f"""Given the following unified diff for a test file, extract the names of all test cases (functions or methods) that were changed, added, or removed.
-For each test, output the full nodeid (file path and test name, separated by '::'), as used by pytest and similar frameworks.
-Examples:
-- Standalone function: 'tests/test_foo.py::test_bar'
-- Inside a class: 'tests/test_foo.py::TestClass::test_bar'
-Return a JSON array of nodeids only.
-
-Diff:
-```
-{file_diff}
-```"""
-        logger.info("[LLM] Calling OpenAI with prompt for file {}:\n{}", patched_file.path, prompt)
-        completion = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0,
-            max_tokens=1024,
-        )
-        try:
-            content = completion.choices[0].message.content
-            logger.info("[LLM] Raw LLM output for file {}:\n{}", patched_file.path, content)
-            result = parse_json_markdown(content)
-            logger.info("[LLM] Parsed test case nodeids for file {}: {}", patched_file.path, result)
-            all_nodeids.extend(result)
-        except Exception as e:
-            logger.error(f"[LLM] Failed to parse LLM output for file {patched_file.path}: {e}")
-            continue
-    return all_nodeids
+        changed_test_files.append(patched_file.path)
+    return changed_test_files
 
 def get_diff(pr_url: str) -> str:
     pr_number = pr_url.rstrip('/').split('/')[-1]
@@ -184,7 +154,7 @@ def get_diff_between_releases(owner: str, repo: str, base: str, end: str) -> str
     logger.info(f"[DIFF] Getting diff between {base} and {end} using git diff")
     try:
         result = subprocess.run(
-            ["git", "diff", f"{base}..{end}"],
+            ["git", "diff", f"{base}..{end}", "--binary"],
             cwd=repo_path,
             check=True,
             capture_output=True,
@@ -316,7 +286,7 @@ def main():
             pr['pr_link'] = issue_url
         else:
             pr['is_issue'] = False
-        pr['changed_test_cases'] = extract_test_cases_with_llm(pr['test_patch'])
+        pr['changed_test_files'] = extract_changed_test_files(pr['test_patch'])
 
     repo_full = f"{owner}/{repo}"
     instance_id = f"{owner}__{repo}_{base}_{end}"

@@ -274,6 +274,8 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
             "arrow-py/arrow": "make test",
             "numpy/numpy": "spin test -v",
             "pytest-dev/pytest": "pytest -rA --continue-on-collection-errors",
+            "scipy/scipy": "python dev.py test -v -v",
+            "qutip/qutip": "pytest -rA --continue-on-collection-errors",
         }
 
         eval_file = Path(log_dir / "eval.sh")

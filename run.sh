@@ -96,3 +96,29 @@ python -m src.export_test_status_changes \
         --output-file output/test_status_changes.jsonl
 
 done
+
+bash ../agg.sh "arrow-py__arrow_1.2.0_1.2.1" arrow_1.2.0
+bash ../agg.sh "graphql-python__graphene_v3.2.2_v3.3.0" graphene_v3.2.2
+bash ../agg.sh "numpy__numpy_v2.1.3_v2.2.0" numpy_v2.1.3
+
+bash eval.sh "output/preds/arrow-py__arrow_1.2.0_1.2.1.jsonl"
+bash eval.sh "output/preds/graphql-python__graphene_v3.2.2_v3.3.0.jsonl"
+bash eval.sh "output/preds/numpy__numpy_v2.1.3_v2.2.0.jsonl"
+
+python -m src.parse_score \
+  --instance-id "arrow-py__arrow_1.2.0_1.2.1" \
+  --prediction-file "output/preds/arrow-py__arrow_1.2.0_1.2.1.jsonl" \
+  --dataset-path "./output/exported_dataset" \
+  --test-status-changes-path "output/test_status_changes.jsonl"
+
+python -m src.parse_score \
+  --instance-id "graphql-python__graphene_v3.2.2_v3.3.0" \
+  --prediction-file "output/preds/graphql-python__graphene_v3.2.2_v3.3.0.jsonl" \
+  --dataset-path "./output/exported_dataset" \
+  --test-status-changes-path "output/test_status_changes.jsonl"
+
+python -m src.parse_score \
+  --instance-id "numpy__numpy_v2.1.3_v2.2.0" \
+  --prediction-file "output/preds/numpy__numpy_v2.1.3_v2.2.0.jsonl" \
+  --dataset-path "./output/exported_dataset" \
+  --test-status-changes-path "output/test_status_changes.jsonl"

@@ -228,16 +228,16 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
                 user="root",
             )
             if val.exit_code != 0:
-                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}")
                 raise EvaluationError(
                     instance_id,
-                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}",
                     logger,
                 )
             else:
-                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
         else:
-            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
 
         # logger.info(f"Applying test patch to container...")
         # # apply test_patch.diff to container
@@ -256,19 +256,19 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         #         user="root",
         #     )
         #     if val.exit_code != 0:
-        #         logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}")
+        #         logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}")
         #         raise EvaluationError(
         #             instance_id,
-        #             f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8')}",
+        #             f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}",
         #             logger,
         #         )
         #     else:
-        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
         # else:
-        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8')}")
+        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
 
         # Get git diff before running eval script
-        git_diff_output_before = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
+        git_diff_output_before = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8", errors="ignore").strip()
         logger.info(f"Git diff before:\n{git_diff_output_before}")
 
         eval_file = Path(log_dir / "eval.sh")
@@ -307,7 +307,7 @@ echo "==== Test end ===="
                 )
 
         # Get git diff after running eval script
-        git_diff_output_after = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8").strip()
+        git_diff_output_after = container.exec_run("git diff", workdir=repo_directory).output.decode("utf-8", errors="ignore").strip()
 
         # Check if git diff changed after running eval script
         logger.info(f"Git diff after:\n{git_diff_output_after}")

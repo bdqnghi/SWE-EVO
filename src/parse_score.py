@@ -8,6 +8,8 @@ from src.status import TestStatus, TestStatusDiff
 from pathlib import Path
 import yaml
 from datasets import load_dataset, load_from_disk
+import argparse
+import sys
 
 
 @dataclass
@@ -79,7 +81,6 @@ class TestStatusPR:
             else:
                 fail_PRs.add(PR)
         
-        print("--------------------------------")
         print("PR_to_pass_percentage:")
         pprint(PR_to_pass_percentage)
 
@@ -99,25 +100,45 @@ class TestStatusPR:
     def __repr__(self) -> str:
         return f"TestStatusPR(pass_PRs={self.pass_PRs}, fail_PRs={self.fail_PRs}, score={self.calculate_score()})"
 
-if __name__ == "__main__":
+def parse_scores(
+    instance_id: str,
+    prediction_file: str,
+    dataset_path: str,
+    test_status_changes_path: str,
+) -> dict[str, float]:
+    """
+    Parse prediction scores for a given instance.
+    
+    Args:
+        instance_id: The instance ID to analyze
+        prediction_file: Path to the prediction JSONL file
+        dataset_path: Path to the exported dataset
+        test_status_changes_path: Path to the test status changes JSONL file
+    
+    Returns:
+        Dictionary mapping prediction names to their scores
+    """
     preds_status: dict[str, TestStatus] = {}
 
-    for line in Path("output/preds/arrow.jsonl").read_text().splitlines():
+    # Load prediction statuses
+    for line in Path(prediction_file).read_text().splitlines():
         try:
             pred_name = json.loads(line)["model_name_or_path"]
             pred_status = TestStatus.from_json_file(
                 Path(
-                    f"logs/run_evaluation/{pred_name}/{pred_name}/arrow-py__arrow_1.2.0_1.2.1/status.json"
+                    f"logs/run_evaluation/{pred_name}/{pred_name}/{instance_id}/status.json"
                 )
             )
             preds_status[pred_name] = pred_status
         except Exception as e:
-            print(f"Error parsing {line}: {e}")
+            # print(f"Error parsing {line}: {e}")
+            print(f"Error parsing {pred_name}: {e}")
             continue
 
+    # Load dataset and create test case to PRs mapping
     test_case_to_PRs_mapping: dict[str, set[str]] = defaultdict(set)
-    dataset = load_from_disk("./output/exported_dataset")["test"].to_pandas()
-    data = dataset.query("instance_id == 'arrow-py__arrow_1.2.0_1.2.1'")["PRs"].iloc[0]
+    dataset = load_from_disk(dataset_path)["test"].to_pandas()
+    data = dataset.query(f"instance_id == '{instance_id}'")["PRs"].iloc[0]
 
     for item in data:
         if "changed_test_cases" in item:
@@ -125,21 +146,76 @@ if __name__ == "__main__":
                 test_case = test_case.split("::")[0]
                 test_case_to_PRs_mapping[test_case].add(item["pr_number"])
 
-    test_case_to_PRs_mapping
-
-    df = pd.read_json("output/test_status_changes.jsonl", lines=True)
-    test_status_changes = df.query("instance_id == 'arrow-py__arrow_1.2.0_1.2.1'").iloc[0]
+    # Load test status changes
+    df = pd.read_json(test_status_changes_path, lines=True)
+    test_status_changes = df.query(f"instance_id == '{instance_id}'").iloc[0]
 
     cared_tests = (
         set(test_status_changes.PASS_TO_PASS) | set(test_status_changes.FAIL_TO_PASS)
     )
 
+    # Calculate prediction scores
     prediction_scores = {}
     for pred_name, pred_status in preds_status.items():
+        print("--------------------------------")
+        print(f"Calculating score for {pred_name}: {pred_status}")
         test_status_PR = TestStatusPR.from_test_status(
             pred_status, test_case_to_PRs_mapping, cared_tests
         )
         prediction_scores[pred_name] = test_status_PR.calculate_score()
 
-    print(f"\nPrediction scores using OpenHands:")
-    pprint(prediction_scores)
+    return prediction_scores
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Parse prediction scores for test status analysis"
+    )
+    parser.add_argument(
+        "--instance-id",
+        required=True,
+        help="The instance ID to analyze (e.g., 'arrow-py__arrow_1.2.0_1.2.1')"
+    )
+    parser.add_argument(
+        "--prediction-file",
+        required=True,
+        help="Path to the prediction JSONL file"
+    )
+    parser.add_argument(
+        "--dataset-path",
+        required=True,
+        help="Path to the exported dataset directory"
+    )
+    parser.add_argument(
+        "--test-status-changes-path",
+        required=True,
+        help="Path to the test status changes JSONL file"
+    )
+    parser.add_argument(
+        "--output-format",
+        choices=["json", "pretty"],
+        default="pretty",
+        help="Output format for the results (default: pretty)"
+    )
+
+    args = parser.parse_args()
+
+    try:
+        prediction_scores = parse_scores(
+            args.instance_id,
+            args.prediction_file,
+            args.dataset_path,
+            args.test_status_changes_path,
+        )
+
+        if args.output_format == "json":
+            print(json.dumps(prediction_scores, indent=2))
+        else:
+            print(f"\nPrediction scores for instance '{args.instance_id}':")
+            pprint(prediction_scores)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

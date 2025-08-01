@@ -71,7 +71,8 @@ class TestStatusPR:
                     failed_count += 1
             
             pass_percentage = (passed_count / total_count) * 100 if total_count > 0 else 0
-            PR_to_pass_percentage[PR] = pass_percentage
+            # PR_to_pass_percentage[PR] = pass_percentage
+            PR_to_pass_percentage[PR] = f"{pass_percentage:.2f}% ({passed_count}/{total_count})"
             
             # A PR passes only if ALL its test cases pass (no failures)
             PR_passed = failed_count == 0

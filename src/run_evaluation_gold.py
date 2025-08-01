@@ -293,6 +293,7 @@ echo "==== Test end ===="
         logger.info(f"Eval script for {instance_id} written to {eval_file}; copying to container...")
         copy_to_container(container, eval_file, Path("/eval.sh"))
 
+        timeout = 7200
         # Run eval script, write output to logs
         test_output, timed_out, total_runtime = exec_run_with_timeout(container, "/bin/bash /eval.sh", timeout)
         test_output_path = log_dir / "test_output.txt"
@@ -825,7 +826,7 @@ def main(
     predictions = {pred[KEY_INSTANCE_ID].lower(): pred for pred in predictions}
 
     # get dataset from predictions
-    dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predictions, run_id, exclude_completed=False)
+    dataset = get_dataset_from_preds(dataset_name, split, instance_ids, predictions, run_id, exclude_completed=True)
     # random.shuffle(dataset)
     full_dataset = load_swebench_dataset(dataset_name, split, instance_ids)
     if report_only:

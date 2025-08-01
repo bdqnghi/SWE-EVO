@@ -291,6 +291,7 @@ echo "==== Test end ===="
         logger.info(f"Eval script for {instance_id} written to {eval_file}; copying to container...")
         copy_to_container(container, eval_file, Path("/eval.sh"))
 
+        timeout = 7200
         # Run eval script, write output to logs
         test_output, timed_out, total_runtime = exec_run_with_timeout(container, "/bin/bash /eval.sh", timeout)
         test_output_path = log_dir / "test_output.txt"
@@ -703,8 +704,8 @@ def get_dataset_from_preds(
     empty_patch_ids = {k for k, v in predictions.items() if v[KEY_PREDICTION] == "" or v[KEY_PREDICTION] is None}
 
     # filter dataset to only instances with predictions
-    # dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] not in empty_patch_ids]
-    dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids]
+    dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids and i[KEY_INSTANCE_ID] not in empty_patch_ids]
+    # dataset = [i for i in dataset if i[KEY_INSTANCE_ID] in prediction_ids]
     return dataset
 
 def run_instances(

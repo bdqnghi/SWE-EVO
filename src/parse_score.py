@@ -212,6 +212,10 @@ def main():
         else:
             print(f"\nPrediction scores for instance '{args.instance_id}':")
             pprint(prediction_scores)
+        
+        Path("output/evaluation_results").mkdir(parents=True, exist_ok=True)
+        with open(f"output/evaluation_results/{args.instance_id}.json", "w") as f:
+            json.dump(prediction_scores, f, indent=2)
 
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)

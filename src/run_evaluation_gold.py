@@ -277,7 +277,7 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         # eval_script = test_spec.eval_script
         eval_script = f"""
 #!/bin/bash
-set -uxo pipefail
+set -xo pipefail
 
 source /opt/conda/bin/activate venv
 

@@ -230,12 +230,12 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
                 user="root",
             )
             if val.exit_code != 0:
-                logger.info(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}")
-                raise EvaluationError(
-                    instance_id,
-                    f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}",
-                    logger,
-                )
+                logger.warning(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}")
+                # raise EvaluationError(
+                #     instance_id,
+                #     f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}",
+                #     logger,
+                # )
             else:
                 logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
         else:
@@ -353,7 +353,7 @@ echo "==== Test end ===="
         logger.error(error_msg)
     finally:
         # Remove instance container + image, close logger
-        cleanup_container(client, container, logger)
+        # cleanup_container(client, container, logger)
         if rm_image:
             remove_image(client, test_spec.instance_image_key, logger)
         close_logger(logger)

@@ -4,9 +4,17 @@ TEST_COMMANDS = {
 sed -i '/^\s*pytest$/s/pytest/pytest -rA --continue-on-collection-errors/' Makefile
 make test
 """,
-    "numpy/numpy": "python -m pip install -r requirements/all_requirements.txt\nspin test -- -rA",
-    "pytest-dev/pytest": "pytest -rA --continue-on-collection-errors",
-    "scipy/scipy": "python dev.py test -v -v",
+    "numpy/numpy": r"""
+python -m pip install -r requirements/all_requirements.txt
+spin test -- -rA
+""",
+    "pytest-dev/pytest": r"""
+pytest -rA --continue-on-collection-errors
+""",
+    "scipy/scipy": r"""
+git submodule update --init --recursive
+python dev.py test -v -v
+""",
     "qutip/qutip": r"""
 python setup.py develop
 pytest -rA --continue-on-collection-errors

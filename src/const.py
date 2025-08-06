@@ -7,5 +7,9 @@ make test
     "numpy/numpy": "python -m pip install -r requirements/all_requirements.txt\nspin test -- -rA",
     "pytest-dev/pytest": "pytest -rA --continue-on-collection-errors",
     "scipy/scipy": "python dev.py test -v -v",
-    "qutip/qutip": "pytest -rA --continue-on-collection-errors",
+    "qutip/qutip": r"""
+python setup.py develop
+pytest -rA --continue-on-collection-errors
+""",
+
 }

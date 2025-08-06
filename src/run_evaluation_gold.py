@@ -241,13 +241,13 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
         # else:
         #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
 
-        logger.info(f"Checkout gold version...")
-        output = container.exec_run(
-            f"git checkout {test_spec._instance['end_version_commit']}",
-            workdir=repo_directory,
-            user="root",
-        )
-        logger.info(f"Checkout gold version output: {output.output.decode('utf-8', errors='ignore')}")
+        # logger.info(f"Checkout gold version...")
+        # output = container.exec_run(
+        #     f"git reset --hard {test_spec._instance['end_version_commit']}",
+        #     workdir=repo_directory,
+        #     user="root",
+        # )
+        # logger.info(f"Checkout gold version output: {output.output.decode('utf-8', errors='ignore')}")
         # logger.info(f"Applying test patch to container...")
         # # apply test_patch.diff to container
         # val = container.exec_run(
@@ -289,6 +289,9 @@ set -xo pipefail
 source /opt/conda/bin/activate venv
 
 cd {repo_directory}
+
+git reset --hard {test_spec._instance['end_version']}
+
 echo "==== Test begin ===="
 {TEST_COMMANDS[test_spec.repo]}
 echo "==== Test end ===="

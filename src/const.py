@@ -13,7 +13,7 @@ pytest -rA --continue-on-collection-errors
 """,
     "scipy/scipy": r"""
 git submodule update --init --recursive
-python dev.py test -v -v
+python dev.py test -- -rA
 """,
     "qutip/qutip": r"""
 python setup.py develop

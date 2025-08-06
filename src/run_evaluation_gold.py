@@ -163,7 +163,7 @@ def run_instance(
                 commit = self._instance["base_commit"]
                 # return self._instance['image']
                 # return f"sweworld/{self._instance['instance_id']}:latest"
-                return f"thaiminhpv/{self._instance['instance_id']}:latest"
+                return f"swe-world_{self._instance['instance_id']}:latest"
 
                 """
 thaiminhpv/sweworld-pytest_8.3.5:latest
@@ -213,34 +213,41 @@ thaiminhpv/sweworld-numpy_v2.1.3:latest
 
         repo_directory = get_repo_directory(container)
 
-        logger.info(f"Applying patch to container...")
-        # Attempt to apply patch to container
-        val = container.exec_run(
-            "git apply --allow-empty -v /tmp/patch.diff",
+        # logger.info(f"Applying patch to container...")
+        # # Attempt to apply patch to container
+        # val = container.exec_run(
+        #     "git apply --allow-empty -v /tmp/patch.diff",
+        #     workdir=repo_directory,
+        #     user="root",
+        # )
+        # if val.exit_code != 0:
+        #     logger.info(f"Failed to apply patch to container, trying again...")
+
+        #     # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
+        #     val = container.exec_run(
+        #         "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
+        #         workdir=repo_directory,
+        #         user="root",
+        #     )
+        #     if val.exit_code != 0:
+        #         logger.warning(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}")
+        #         # raise EvaluationError(
+        #         #     instance_id,
+        #         #     f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}",
+        #         #     logger,
+        #         # )
+        #     else:
+        #         logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
+        # else:
+        #     logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
+
+        logger.info(f"Checkout gold version...")
+        output = container.exec_run(
+            f"git checkout {test_spec._instance['end_version_commit']}",
             workdir=repo_directory,
             user="root",
         )
-        if val.exit_code != 0:
-            logger.info(f"Failed to apply patch to container, trying again...")
-
-            # try "patch --batch --fuzz=5 -p1 -i {patch_path}" to try again
-            val = container.exec_run(
-                "patch --batch --fuzz=5 -p1 -i /tmp/patch.diff",
-                workdir=repo_directory,
-                user="root",
-            )
-            if val.exit_code != 0:
-                logger.warning(f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}")
-                # raise EvaluationError(
-                #     instance_id,
-                #     f"{APPLY_PATCH_FAIL}:\n{val.output.decode('utf-8', errors='ignore')}",
-                #     logger,
-                # )
-            else:
-                logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
-        else:
-            logger.info(f"{APPLY_PATCH_PASS}:\n{val.output.decode('utf-8', errors='ignore')}")
-
+        logger.info(f"Checkout gold version output: {output.output.decode('utf-8', errors='ignore')}")
         # logger.info(f"Applying test patch to container...")
         # # apply test_patch.diff to container
         # val = container.exec_run(
@@ -353,7 +360,7 @@ echo "==== Test end ===="
         logger.error(error_msg)
     finally:
         # Remove instance container + image, close logger
-        # cleanup_container(client, container, logger)
+        cleanup_container(client, container, logger)
         if rm_image:
             remove_image(client, test_spec.instance_image_key, logger)
         close_logger(logger)

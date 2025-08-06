@@ -163,7 +163,7 @@ def run_instance(
                 commit = self._instance["base_commit"]
                 # return self._instance['image']
                 # return f"sweworld/{self._instance['instance_id']}:latest"
-                return f"thaiminhpv/{self._instance['instance_id']}:latest"
+                return f"swe-world_{self._instance['instance_id']}:latest"
 
                 """
 thaiminhpv/sweworld-pytest_8.3.5:latest

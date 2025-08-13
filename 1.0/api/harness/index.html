@@ -1666,6 +1666,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#swebench.harness.constants.SPECS_SCIPY" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPECS_SCIPY
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#swebench.harness.constants.MAP_REPO_VERSION_TO_SPECS_PY" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;MAP_REPO_VERSION_TO_SPECS_PY
@@ -3440,6 +3449,15 @@
   <a href="#swebench.harness.constants.python.SPECS_ARROW" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPECS_ARROW
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#swebench.harness.constants.python.SPECS_SCIPY" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPECS_SCIPY
     </span>
   </a>
   
@@ -6668,6 +6686,15 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#swebench.harness.constants.SPECS_SCIPY" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPECS_SCIPY
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#swebench.harness.constants.MAP_REPO_VERSION_TO_SPECS_PY" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;MAP_REPO_VERSION_TO_SPECS_PY
@@ -8442,6 +8469,15 @@
   <a href="#swebench.harness.constants.python.SPECS_ARROW" class="md-nav__link">
     <span class="md-ellipsis">
       <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPECS_ARROW
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#swebench.harness.constants.python.SPECS_SCIPY" class="md-nav__link">
+    <span class="md-ellipsis">
+      <code class="doc-symbol doc-symbol-toc doc-symbol-attribute"></code>&nbsp;SPECS_SCIPY
     </span>
   </a>
   
@@ -12999,6 +13035,28 @@
 
 
 
+<h5 id="swebench.harness.constants.SPECS_SCIPY" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">SPECS_SCIPY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h5>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">SPECS_SCIPY</span> <span class="o">=</span> <span class="p">{</span><span class="n"><span title="k">k</span></span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;python&#39;</span><span class="p">:</span> <span class="s1">&#39;3.11&#39;</span><span class="p">,</span> <span class="s1">&#39;pre_install&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;apt-get update &amp;&amp; apt-get install -y gcc g++ gfortran libopenblas-dev liblapack-dev pkg-config python3-pip python3-dev&#39;</span><span class="p">,</span> <span class="s1">&#39;python -m pip install pytest hypothesis&#39;</span><span class="p">],</span> <span class="s1">&#39;install&#39;</span><span class="p">:</span> <span class="s1">&#39;python -m pip install . --no-build-isolation &amp;&amp; git submodule update --init --recursive&#39;</span><span class="p">,</span> <span class="s1">&#39;test_cmd&#39;</span><span class="p">:</span> <span class="s1">&#39;python dev.py test -- -rA&#39;</span><span class="p">}</span><span class="k">for</span> <span class="n"><span title="k">k</span></span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;v1.15.3&#39;</span><span class="p">]}</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h5 id="swebench.harness.constants.MAP_REPO_VERSION_TO_SPECS_PY" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">MAP_REPO_VERSION_TO_SPECS_PY</span>
 
@@ -13118,7 +13176,12 @@
 
   
       module-attribute
-   (swebench.harness.constants.python.SPECS_ARROW)" href="#swebench.harness.constants.python.SPECS_ARROW">SPECS_ARROW</a></span><span class="p">}</span>
+   (swebench.harness.constants.python.SPECS_ARROW)" href="#swebench.harness.constants.python.SPECS_ARROW">SPECS_ARROW</a></span><span class="p">,</span> <span class="s1">&#39;scipy/scipy&#39;</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            SPECS_SCIPY
+
+
+  
+      module-attribute
+   (swebench.harness.constants.python.SPECS_SCIPY)" href="#swebench.harness.constants.python.SPECS_SCIPY">SPECS_SCIPY</a></span><span class="p">}</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -18676,6 +18739,28 @@ passing tests.</p>
 
 
 
+<h6 id="swebench.harness.constants.python.SPECS_SCIPY" class="doc doc-heading">
+<code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">SPECS_SCIPY</span>
+
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-module-attribute"><code>module-attribute</code></small>
+  </span>
+
+</h6>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">SPECS_SCIPY</span> <span class="o">=</span> <span class="p">{</span><span class="n"><span title="k">k</span></span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;python&#39;</span><span class="p">:</span> <span class="s1">&#39;3.11&#39;</span><span class="p">,</span> <span class="s1">&#39;pre_install&#39;</span><span class="p">:</span> <span class="p">[</span><span class="s1">&#39;apt-get update &amp;&amp; apt-get install -y gcc g++ gfortran libopenblas-dev liblapack-dev pkg-config python3-pip python3-dev&#39;</span><span class="p">,</span> <span class="s1">&#39;python -m pip install pytest hypothesis&#39;</span><span class="p">],</span> <span class="s1">&#39;install&#39;</span><span class="p">:</span> <span class="s1">&#39;python -m pip install . --no-build-isolation &amp;&amp; git submodule update --init --recursive&#39;</span><span class="p">,</span> <span class="s1">&#39;test_cmd&#39;</span><span class="p">:</span> <span class="s1">&#39;python dev.py test -- -rA&#39;</span><span class="p">}</span><span class="k">for</span> <span class="n"><span title="k">k</span></span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;v1.15.3&#39;</span><span class="p">]}</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
 <h6 id="swebench.harness.constants.python.MAP_REPO_VERSION_TO_SPECS_PY" class="doc doc-heading">
 <code class="doc-symbol doc-symbol-heading doc-symbol-attribute"></code>            <span class="doc doc-object-name doc-attribute-name">MAP_REPO_VERSION_TO_SPECS_PY</span>
 
@@ -18795,7 +18880,12 @@ passing tests.</p>
 
   
       module-attribute
-   (swebench.harness.constants.python.SPECS_ARROW)" href="#swebench.harness.constants.python.SPECS_ARROW">SPECS_ARROW</a></span><span class="p">}</span>
+   (swebench.harness.constants.python.SPECS_ARROW)" href="#swebench.harness.constants.python.SPECS_ARROW">SPECS_ARROW</a></span><span class="p">,</span> <span class="s1">&#39;scipy/scipy&#39;</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            SPECS_SCIPY
+
+
+  
+      module-attribute
+   (swebench.harness.constants.python.SPECS_SCIPY)" href="#swebench.harness.constants.python.SPECS_SCIPY">SPECS_SCIPY</a></span><span class="p">}</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
@@ -24189,47 +24279,7 @@ and evaluation log.</p>
   </span>
 
 </h5>
-<div class="doc-signature highlight"><pre><span></span><code><span class="n">MAP_REPO_TO_PARSER</span> <span class="o">=</span> <span class="p">{</span><span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_C
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.c.MAP_REPO_TO_PARSER_C)" href="#swebench.harness.log_parsers.c.MAP_REPO_TO_PARSER_C">MAP_REPO_TO_PARSER_C</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_GO
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.go.MAP_REPO_TO_PARSER_GO)" href="#swebench.harness.log_parsers.go.MAP_REPO_TO_PARSER_GO">MAP_REPO_TO_PARSER_GO</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_JAVA
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.java.MAP_REPO_TO_PARSER_JAVA)" href="#swebench.harness.log_parsers.java.MAP_REPO_TO_PARSER_JAVA">MAP_REPO_TO_PARSER_JAVA</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_JS
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.javascript.MAP_REPO_TO_PARSER_JS)" href="#swebench.harness.log_parsers.javascript.MAP_REPO_TO_PARSER_JS">MAP_REPO_TO_PARSER_JS</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_PHP
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.php.MAP_REPO_TO_PARSER_PHP)" href="#swebench.harness.log_parsers.php.MAP_REPO_TO_PARSER_PHP">MAP_REPO_TO_PARSER_PHP</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_PY
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.python.MAP_REPO_TO_PARSER_PY)" href="#swebench.harness.log_parsers.python.MAP_REPO_TO_PARSER_PY">MAP_REPO_TO_PARSER_PY</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_RUST
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.rust.MAP_REPO_TO_PARSER_RUST)" href="#swebench.harness.log_parsers.rust.MAP_REPO_TO_PARSER_RUST">MAP_REPO_TO_PARSER_RUST</a></span><span class="p">,</span> <span class="kc">None</span><span class="p">:</span> <span class="n"><a class="autorefs autorefs-internal" title="            MAP_REPO_TO_PARSER_RUBY
-
-
-  
-      module-attribute
-   (swebench.harness.log_parsers.ruby.MAP_REPO_TO_PARSER_RUBY)" href="#swebench.harness.log_parsers.ruby.MAP_REPO_TO_PARSER_RUBY">MAP_REPO_TO_PARSER_RUBY</a></span><span class="p">}</span>
+<div class="doc-signature highlight"><pre><span></span><code><span class="n">MAP_REPO_TO_PARSER</span> <span class="o">=</span> <span class="n"><span title="collections.defaultdict">defaultdict</span></span><span class="p">(</span><span class="n"><a class="autorefs autorefs-internal" title="            parse_log_pytest_v2 (swebench.harness.log_parsers.python.parse_log_pytest_v2)" href="#swebench.harness.log_parsers.python.parse_log_pytest_v2">parse_log_pytest_v2</a></span><span class="p">)</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
